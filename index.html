@@ -65,6 +65,36 @@
       cursor: pointer;
       box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
+    .game-control-buttons {
+      position: absolute;
+      right: 14px;
+      top: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      z-index: 4; /* below welcome-screen, above canvas */
+      pointer-events: auto;
+    }
+
+    .game-control-button {
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      border: none;
+      border-radius: 50%;
+      background: transparent;
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: contain;
+      cursor: pointer;
+      box-shadow: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .game-control-button:active {
+      transform: scale(0.94);
+    }
+
 
     #lock-screen {
       position: fixed;
@@ -203,6 +233,11 @@
 
   <div id="game-container">
     <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <div class="game-control-buttons" aria-label="Game controls">
+      <button id="pause-toggle-button" class="game-control-button" aria-label="Pause game"></button>
+      <button id="music-toggle-button" class="game-control-button" aria-label="Mute music"></button>
+      <button id="sound-toggle-button" class="game-control-button" aria-label="Mute sound"></button>
+    </div>
     <div id="game-over">
      <img src="./assets/end_lose_ready.png" class="end-image">
   </div>
@@ -229,6 +264,10 @@
     const gameWinScreen = document.getElementById('game-win');
     const welcomeScreen = document.getElementById('welcome-screen');
     const welcomePanelImage = document.getElementById('welcome-panel-image');
+
+    const pauseToggleButton = document.getElementById('pause-toggle-button');
+    const musicToggleButton = document.getElementById('music-toggle-button');
+    const soundToggleButton = document.getElementById('sound-toggle-button');
     const welcomePanels = [
       './assets/welcome_screen_panel_1_ready.png',
       './assets/welcome_screen_panel_2_ready.png'
@@ -291,6 +330,73 @@
     // and change ASSET_FOLDER to './'.
     const ASSET_FOLDER = './assets/';
 
+    const buttonAssets = {
+      pause: ASSET_FOLDER + 'pause_button.png',
+      start: ASSET_FOLDER + 'start_button.png',
+      sound: ASSET_FOLDER + 'sound_button.png',
+      soundMute: ASSET_FOLDER + 'sound_mute_button.png',
+      music: ASSET_FOLDER + 'music_button.png',
+      musicMute: ASSET_FOLDER + 'music_mute_button.png'
+    };
+
+    let gamePaused = false;
+    let soundEnabled = true;
+    let musicEnabled = true;
+
+
+    function setButtonImage(button, src) {
+      if (!button) return;
+      button.style.backgroundImage = `url("${src}")`;
+    }
+
+    function updateControlButtons() {
+      setButtonImage(pauseToggleButton, gamePaused ? buttonAssets.start : buttonAssets.pause);
+      setButtonImage(soundToggleButton, soundEnabled ? buttonAssets.sound : buttonAssets.soundMute);
+      setButtonImage(musicToggleButton, musicEnabled ? buttonAssets.music : buttonAssets.musicMute);
+
+      if (pauseToggleButton) pauseToggleButton.setAttribute('aria-label', gamePaused ? 'Start game' : 'Pause game');
+      if (soundToggleButton) soundToggleButton.setAttribute('aria-label', soundEnabled ? 'Mute sound' : 'Turn sound on');
+      if (musicToggleButton) musicToggleButton.setAttribute('aria-label', musicEnabled ? 'Mute music' : 'Turn music on');
+    }
+
+    function stopAllVoicesForSoundMute() {
+      stopPanelVoices();
+      stopEndVoices();
+      if (welcomeActive) markWelcomePanelReady();
+      if (!gameRunning && gameResult) markEndScreenReady(gameResult);
+    }
+
+    function pauseGameFromButton() {
+      if (welcomeActive || !gameRunning || gameResult) return;
+      gamePaused = !gamePaused;
+      updateControlButtons();
+      if (gamePaused) {
+        fadeAmbienceTo(0, 300);
+      } else if (musicEnabled) {
+        startAmbience(AMBIENCE_GAME_VOLUME);
+      }
+    }
+
+    function toggleSoundFromButton() {
+      soundEnabled = !soundEnabled;
+      updateControlButtons();
+      if (!soundEnabled) {
+        stopAllVoicesForSoundMute();
+        goblinSound.pause();
+        letterCollectSound.pause();
+      }
+    }
+
+    function toggleMusicFromButton() {
+      musicEnabled = !musicEnabled;
+      updateControlButtons();
+      if (!musicEnabled) {
+        fadeAmbienceTo(0, 300);
+      } else if (!gamePaused) {
+        if (musicEnabled && !gamePaused) startAmbience(welcomeActive ? AMBIENCE_PANEL_VOLUME : AMBIENCE_GAME_VOLUME);
+      }
+    }
+
     const assetFiles = {
       player: 'Little_Tommy_ready.png',
       monster: 'goblin_ready.png',
@@ -351,6 +457,8 @@
     function init(repeatSameLevel = true) {
       levelSpeedMultiplier = 1 + (currentLevel - 1) * 0.18;
       gameResult = null;
+      gamePaused = false;
+      updateControlButtons();
       restartPending = false;
       endScreenReady = false;
       endScreenVoiceResult = null;
@@ -421,7 +529,7 @@
     }
 
     function movePlayer(direction) {
-      if (!gameRunning) return;
+      if (!gameRunning || gamePaused) return;
       if (direction === 'left' && playerLane > 0) playerLane--;
       if (direction === 'right' && playerLane < laneCount - 1) playerLane++;
     }
@@ -479,6 +587,7 @@
 
     function update() {
       if (welcomeActive) return;
+      if (gamePaused) return;
       if (!gameRunning) return;
       waveTick += 0.003;
 
@@ -502,13 +611,17 @@
           createCollectAnimation(obj);
           if (obj.type.harmful) {
 
-            goblinSound.currentTime = 0;
-            goblinSound.play().catch(() => {});
+            if (soundEnabled) {
+              goblinSound.currentTime = 0;
+              goblinSound.play().catch(() => {});
+            }
 
             loseLife();
           } else {
-            letterCollectSound.currentTime = 0;
-            letterCollectSound.play().catch(() => {});
+            if (soundEnabled) {
+              letterCollectSound.currentTime = 0;
+              letterCollectSound.play().catch(() => {});
+            }
 
 educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
             if (educationalLevel >= goal) gameWin();
@@ -672,7 +785,7 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
 
     function drawUI() {
       const livesX = 13;
-      const livesY = 18;
+      const livesY = 16;
       const livesW = 150;
       const livesH = 80;
       if (images.livesUI && images.livesUI.ready) ctx.drawImage(images.livesUI, livesX, livesY, livesW, livesH);
@@ -1102,6 +1215,10 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
     }
 
     function playWelcomePanelVoice(index) {
+      if (!soundEnabled) {
+        setTimeout(() => markWelcomePanelReady(), 700);
+        return;
+      }
       if (!panelVoices[index]) return;
 
       stopPanelVoices();
@@ -1130,6 +1247,7 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
 
     function fadeAmbienceTo(targetVolume, duration = 900) {
       if (!ambienceMusic) return;
+      if (!musicEnabled && targetVolume > 0) targetVolume = 0;
 
       if (ambienceFadeFrame) {
         cancelAnimationFrame(ambienceFadeFrame);
@@ -1156,6 +1274,8 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
     }
 
     function startAmbience(targetVolume = AMBIENCE_PANEL_VOLUME) {
+      if (!musicEnabled && targetVolume > 0) return;
+
       if (ambienceStarted) {
         fadeAmbienceTo(targetVolume, 700);
         return;
@@ -1208,6 +1328,11 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
 
     function startFirstWelcomePanelAudio() {
       if (!welcomeActive || !welcomeWaitingForFirstTap || firstWelcomeVoiceTrying) return;
+      if (!soundEnabled) {
+        welcomeWaitingForFirstTap = false;
+        markWelcomePanelReady();
+        return;
+      }
 
       firstWelcomeVoiceTrying = true;
       welcomePanelReady = false;
@@ -1298,6 +1423,10 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
     }
 
     function playEndScreenVoice(result) {
+      if (!soundEnabled) {
+        setTimeout(() => markEndScreenReady(result), 700);
+        return;
+      }
       const voice = endVoices[result];
       endScreenReady = false;
       endScreenVoiceResult = result;
@@ -1349,7 +1478,7 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
       if (isLockScreenVisible()) return;
 
       if (!(welcomeActive && welcomeWaitingForFirstTap)) {
-        startAmbience(welcomeActive ? AMBIENCE_PANEL_VOLUME : AMBIENCE_GAME_VOLUME);
+        if (musicEnabled && !gamePaused) startAmbience(welcomeActive ? AMBIENCE_PANEL_VOLUME : AMBIENCE_GAME_VOLUME);
       }
 
       if (ignoreNextEnter && e.key === 'Enter') {
@@ -1382,7 +1511,7 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
       if (isLockScreenVisible()) return;
 
       if (!(welcomeActive && welcomeWaitingForFirstTap)) {
-        startAmbience(welcomeActive ? AMBIENCE_PANEL_VOLUME : AMBIENCE_GAME_VOLUME);
+        if (musicEnabled && !gamePaused) startAmbience(welcomeActive ? AMBIENCE_PANEL_VOLUME : AMBIENCE_GAME_VOLUME);
       }
 
       if (welcomeActive) {
@@ -1406,7 +1535,7 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
     });
 
     canvas.addEventListener('pointermove', (e) => {
-      if (!isSwipeDragging || !gameRunning || welcomeActive || isLockScreenVisible()) return;
+      if (!isSwipeDragging || !gameRunning || gamePaused || welcomeActive || isLockScreenVisible()) return;
       if (swipeMovedThisGesture) return;
 
       const deltaX = e.clientX - swipeStartX;
@@ -1458,6 +1587,33 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
       welcomeScreen.addEventListener('click', handleWelcomeScreenStart);
       welcomeScreen.addEventListener('pointerup', handleWelcomeScreenStart);
     }
+
+
+    if (pauseToggleButton) {
+      pauseToggleButton.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        pauseGameFromButton();
+      });
+    }
+
+    if (musicToggleButton) {
+      musicToggleButton.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleMusicFromButton();
+      });
+    }
+
+    if (soundToggleButton) {
+      soundToggleButton.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleSoundFromButton();
+      });
+    }
+
+    updateControlButtons();
 
 gameOverScreen.addEventListener('pointerdown', restartOrContinueWithBurst);
     gameWinScreen.addEventListener('pointerdown', restartOrContinueWithBurst);
