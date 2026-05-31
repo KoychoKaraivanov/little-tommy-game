@@ -280,6 +280,11 @@
     const goblinSound = new Audio('./assets/goblin_sound.mp3');
     goblinSound.preload = 'auto';
     goblinSound.volume = 1.0;
+
+    const letterCollectSound = new Audio('./assets/letters_collect.mp3');
+    letterCollectSound.preload = 'auto';
+    letterCollectSound.volume = 1.0;
+
     ambienceMusic.preload = 'auto';
     ambienceMusic.loop = false; // manual restart below gives smoother control than simple loop=true
     ambienceMusic.volume = 0;
@@ -301,7 +306,7 @@
 
     const assetFiles = {
       player: 'Little_Tommy_ready.png',
-      mine: 'goblin_ready.png',
+      monster: 'goblin_ready.png',
       letterA: 'letter_a_ready.png',
       letterE: 'letter_e_ready.png',
       letterI: 'letter_i_ready.png',
@@ -347,13 +352,13 @@
     const SWIPE_MOVE_THRESHOLD = 38;
 
     const OBJECT_TYPES = [
-      { name: 'mine', image: 'mine', value: 0, harmful: true, w: 92, h: 92, chance: 0.26 },
+      { name: 'monster', image: 'monster', value: 0, harmful: true, w: 92, h: 92, chance: 0.15 },
       // Letters are caught by Little Tommy: catching them increases the educational meter.
-      { name: 'letterA', image: 'letterA', value: 3, harmful: false, w: 54, h: 54, chance: 0.15 },
-      { name: 'letterE', image: 'letterE', value: 3, harmful: false, w: 54, h: 54, chance: 0.15 },
-      { name: 'letterI', image: 'letterI', value: 3, harmful: false, w: 64, h: 64, chance: 0.15 },
-      { name: 'letterO', image: 'letterO', value: 3, harmful: false, w: 54, h: 54, chance: 0.15 },
-      { name: 'letterU', image: 'letterU', value: 3, harmful: false, w: 54, h: 54, chance: 0.15 }
+      { name: 'letterA', image: 'letterA', value: 2, harmful: false, w: 54, h: 54, chance: 0.10 },
+      { name: 'letterE', image: 'letterE', value: 2, harmful: false, w: 54, h: 54, chance: 0.10 },
+      { name: 'letterI', image: 'letterI', value: 2, harmful: false, w: 64, h: 64, chance: 0.10 },
+      { name: 'letterO', image: 'letterO', value: 2, harmful: false, w: 54, h: 54, chance: 0.10 },
+      { name: 'letterU', image: 'letterU', value: 2, harmful: false, w: 54, h: 54, chance: 0.10 }
     ];
 
     function init(repeatSameLevel = true) {
@@ -388,10 +393,36 @@
       return OBJECT_TYPES[0];
     }
 
+    function canSpawnInLane(lane, type) {
+      const spawnY = -type.h;
+      const minVerticalGap = 118;
+
+      return !fallingObjects.some(obj => {
+        const sameOrNeighborLane = Math.abs(obj.lane - lane) <= 1;
+        const closeVertically = Math.abs(obj.y - spawnY) < minVerticalGap;
+        return sameOrNeighborLane && closeVertically;
+      });
+    }
+
     function addFallingObject() {
       const type = chooseObjectType();
+
+      let lane = Math.floor(Math.random() * laneCount);
+      let foundSafeLane = false;
+
+      for (let attempts = 0; attempts < 10; attempts++) {
+        lane = Math.floor(Math.random() * laneCount);
+
+        if (canSpawnInLane(lane, type)) {
+          foundSafeLane = true;
+          break;
+        }
+      }
+
+      if (!foundSafeLane) return;
+
       fallingObjects.push({
-        lane: Math.floor(Math.random() * laneCount),
+        lane,
         y: -type.h,
         type,
         speed: (1.8 + Math.random() * 2.2) * levelSpeedMultiplier,
@@ -489,22 +520,17 @@
 
             loseLife();
           } else {
+            letterCollectSound.currentTime = 0;
+            letterCollectSound.play().catch(() => {});
 
-            // 🔊 Play letter sound
-            const sound = letterSounds[obj.type.name];
-            if (sound) {
-              sound.currentTime = 0;
-              sound.play().catch(() => {});
-            }
-
-            educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
+educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
             if (educationalLevel >= goal) gameWin();
           }
           fallingObjects.splice(i, 1);
         }
       }
 
-      if (Math.random() < 0.025) addFallingObject();
+      if (Math.random() < 0.010) addFallingObject();
     }
 
     function drawImageCentered(key, x, y, w, h, rotation = 0, fallback) {
@@ -765,7 +791,7 @@
         const eased = 1 - Math.pow(1 - progress, 3);
 
         if (anim.harmful) {
-          // Naval mines should feel dangerous: they do not get the friendly collection effect.
+          // Monsters should feel dangerous: they do not get the friendly collection effect.
           // They flash, burst outward, and leave a small smoky explosion near the robot.
           const blastX = anim.startX + (anim.targetX - anim.startX) * Math.min(1, progress * 1.15);
           const blastY = anim.startY + (anim.targetY - anim.startY) * Math.min(1, progress * 1.15);
