@@ -1118,7 +1118,6 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
       if (!panelVoices[index]) return;
 
       stopPanelVoices();
-      startAmbience(AMBIENCE_VOICE_DUCK_VOLUME);
 
       const voice = panelVoices[index];
       voice.currentTime = 0;
@@ -1129,15 +1128,21 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
         }
       };
 
+      // Android needs the voice itself to be started directly from the first tap.
+      // Start the panel voice first, then start the ambience quietly after it is unlocked.
       const playPromise = voice.play();
-      if (playPromise && typeof playPromise.catch === 'function') {
-        playPromise.catch(() => {
-          // If a browser blocks the voice, do not skip instantly; show the cue shortly after.
-          fadeAmbienceTo(AMBIENCE_PANEL_VOLUME, 700);
-          setTimeout(() => {
-            if (welcomeActive && welcomePanelIndex === index) markWelcomePanelReady();
-          }, 1200);
-        });
+      if (playPromise && typeof playPromise.then === 'function') {
+        playPromise
+          .then(() => startAmbience(AMBIENCE_VOICE_DUCK_VOLUME))
+          .catch(() => {
+            // If a browser blocks the voice, do not skip instantly; show the cue shortly after.
+            startAmbience(AMBIENCE_PANEL_VOLUME);
+            setTimeout(() => {
+              if (welcomeActive && welcomePanelIndex === index) markWelcomePanelReady();
+            }, 1200);
+          });
+      } else {
+        startAmbience(AMBIENCE_VOICE_DUCK_VOLUME);
       }
     }
 
@@ -1342,16 +1347,17 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
     canvas.addEventListener('pointerdown', (e) => {
       if (isLockScreenVisible()) return;
 
-      startAmbience(welcomeActive ? AMBIENCE_PANEL_VOLUME : AMBIENCE_GAME_VOLUME);
-
       if (welcomeActive) {
         if (welcomeWaitingForFirstTap) {
           startFirstWelcomePanelAudio();
         } else {
+          startAmbience(AMBIENCE_PANEL_VOLUME);
           advanceWelcomePanel();
         }
         return;
    }
+
+      startAmbience(AMBIENCE_GAME_VOLUME);
 
       if (!gameRunning) {
         restartOrContinueWithBurst(e);
