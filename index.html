@@ -239,6 +239,7 @@
     let welcomeTransitionPending = false;
     let welcomePanelReady = false;
     let welcomeWaitingForFirstTap = false;
+    let firstWelcomeVoiceTrying = false;
 
     // 🔊 Welcome voices + soft underwater ambience
     const panelVoices = [
@@ -1206,9 +1207,9 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
     }
 
     function startFirstWelcomePanelAudio() {
-      if (!welcomeActive || !welcomeWaitingForFirstTap) return;
+      if (!welcomeActive || !welcomeWaitingForFirstTap || firstWelcomeVoiceTrying) return;
 
-      welcomeWaitingForFirstTap = false;
+      firstWelcomeVoiceTrying = true;
       welcomePanelReady = false;
 
       if (welcomePanelImage) {
@@ -1216,39 +1217,54 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
         welcomePanelImage.src = welcomePanels[0];
       }
 
-      // Android Chrome needs the first sound to start directly from the user's tap.
-      // So we play the panel voice first, and only then start/fade the ambience.
+      // Chrome on Android is very strict:
+      // the FIRST requested audio must be the voice itself, directly from the tap.
       stopPanelVoices();
 
       const voice = panelVoices[0];
       if (!voice) {
-        markWelcomePanelReady();
+        firstWelcomeVoiceTrying = false;
         return;
       }
 
+      voice.load();
       voice.currentTime = 0;
+
+      voice.onplaying = () => {
+        welcomeWaitingForFirstTap = false;
+        firstWelcomeVoiceTrying = false;
+        // Start ambience only AFTER the voice has really started.
+        startAmbience(AMBIENCE_VOICE_DUCK_VOLUME);
+      };
+
       voice.onended = () => {
         if (welcomeActive && welcomePanelIndex === 0) {
+          welcomeWaitingForFirstTap = false;
+          firstWelcomeVoiceTrying = false;
           fadeAmbienceTo(AMBIENCE_PANEL_VOLUME, 700);
           markWelcomePanelReady();
         }
       };
 
+      voice.onerror = () => {
+        // Do not shake/advance if the sound did not load.
+        // The player can tap again after the file is ready.
+        firstWelcomeVoiceTrying = false;
+        welcomeWaitingForFirstTap = true;
+      };
+
       const playPromise = voice.play();
 
       if (playPromise && typeof playPromise.then === 'function') {
-        playPromise
-          .then(() => {
-            startAmbience(AMBIENCE_VOICE_DUCK_VOLUME);
-          })
-          .catch(() => {
-            // If Chrome still blocks audio, keep the panel locked briefly,
-            // then show the shake cue so the player can tap again.
-            setTimeout(() => {
-              if (welcomeActive && welcomePanelIndex === 0) markWelcomePanelReady();
-            }, 1200);
-          });
+        playPromise.catch(() => {
+          // Important: do NOT mark the panel ready here.
+          // On Android Chrome, if the first attempt is blocked, keep waiting for another tap.
+          firstWelcomeVoiceTrying = false;
+          welcomeWaitingForFirstTap = true;
+        });
       } else {
+        welcomeWaitingForFirstTap = false;
+        firstWelcomeVoiceTrying = false;
         startAmbience(AMBIENCE_VOICE_DUCK_VOLUME);
       }
     }
@@ -1370,9 +1386,7 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
       }
 
       if (welcomeActive) {
-        if (welcomeWaitingForFirstTap) {
-          startFirstWelcomePanelAudio();
-        } else {
+        if (!welcomeWaitingForFirstTap) {
           advanceWelcomePanel();
         }
         return;
@@ -1420,36 +1434,32 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
       swipeMovedThisGesture = false;
     });
 
-    if (welcomeScreen) {
-      welcomeScreen.addEventListener('pointerdown', (e) => {
+    function handleWelcomeScreenStart(e) {
+      if (isLockScreenVisible() || !welcomeActive) return;
+
+      if (welcomeWaitingForFirstTap) {
+        // Do not start ambience here. The voice must be the first audio request.
+        startFirstWelcomePanelAudio();
+        return;
+      }
+
+      if (e) {
         e.preventDefault();
         e.stopPropagation();
+      }
 
-        if (isLockScreenVisible() || !welcomeActive) return;
-
-        if (welcomeWaitingForFirstTap) {
-          startFirstWelcomePanelAudio();
-        } else {
-          startAmbience(AMBIENCE_PANEL_VOLUME);
-          advanceWelcomePanel();
-        }
-      });
+      startAmbience(AMBIENCE_PANEL_VOLUME);
+      advanceWelcomePanel();
     }
 
     if (welcomeScreen) {
-      welcomeScreen.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-
-        if (isLockScreenVisible() || !welcomeActive) return;
-
-        if (welcomeWaitingForFirstTap) {
-          startFirstWelcomePanelAudio();
-        }
-      }, { passive: false });
+      // Android Chrome usually unlocks audio best from touchstart or click.
+      welcomeScreen.addEventListener('touchstart', handleWelcomeScreenStart, { passive: true });
+      welcomeScreen.addEventListener('click', handleWelcomeScreenStart);
+      welcomeScreen.addEventListener('pointerup', handleWelcomeScreenStart);
     }
 
-    gameOverScreen.addEventListener('pointerdown', restartOrContinueWithBurst);
+gameOverScreen.addEventListener('pointerdown', restartOrContinueWithBurst);
     gameWinScreen.addEventListener('pointerdown', restartOrContinueWithBurst);
 
     init();
