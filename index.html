@@ -1,0 +1,1396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Teamy The Robot</title>
+  <style>
+
+    canvas {
+      touch-action: none;
+    }
+     .end-image {
+       width: 90%;
+       max-width: 500px;
+       height: auto;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at center, #105a78 0%, #063144 100%);
+      font-family: Arial, Helvetica, sans-serif;
+      overflow: hidden;
+    }
+    #game-container {
+      position: relative;
+      width: min(96vw, 520px);
+      aspect-ratio: 2 / 3;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border-radius: 22px;
+      box-shadow: 0 0 25px rgba(164, 255, 240, 0.7);
+      background: #0bbbd1;
+    }
+    #game-over, #game-win {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 14px;
+      background: rgba(0, 35, 55, 0.68);
+      color: #fff;
+      font-size: 34px;
+      font-weight: 800;
+      text-align: center;
+      border-radius: 22px;
+      text-shadow: 0 3px 8px rgba(0,0,0,0.35);
+    }
+    button {
+      padding: 10px 22px;
+      border: 3px solid #fff;
+      border-radius: 999px;
+      background: linear-gradient(#4ba7ff, #1767c7);
+      color: #fff;
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    }
+
+    #lock-screen {
+      position: fixed;
+      inset: 0;
+      background: #063144;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      z-index: 9999;
+    }
+
+    #lock-screen input {
+      padding: 10px;
+      font-size: 16px;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      border: none;
+    }
+
+    #lock-screen button {
+      padding: 10px 20px;
+      font-size: 16px;
+      border-radius: 999px;
+      border: none;
+      background: #4ba7ff;
+      color: white;
+      cursor: pointer;
+   }
+
+
+    #error-msg {
+      color: #ff6b6b;
+      font-size: 14px;
+      margin-top: 8px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    @keyframes passwordShake {
+      0% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      50% { transform: translateX(5px); }
+      75% { transform: translateX(-5px); }
+      100% { transform: translateX(0); }
+    }
+
+    .password-shake {
+      animation: passwordShake 0.3s;
+    }
+
+
+    #welcome-screen {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: rgba(0, 20, 38, 0.35);
+      border-radius: 22px;
+      z-index: 5;
+      cursor: pointer;
+      overflow: hidden;
+    }
+
+    #welcome-panel-image {
+      width: 90%;
+      max-width: 520px;
+      height: auto;
+      display: block;
+      user-select: none;
+      -webkit-user-drag: none;
+      pointer-events: none;
+    }
+
+    #welcome-screen.hidden {
+      display: none;
+    }
+
+    @keyframes welcomeReadyShake {
+      0% { transform: translateX(0) rotate(0deg); }
+      20% { transform: translateX(-4px) rotate(-0.5deg); }
+      40% { transform: translateX(4px) rotate(0.5deg); }
+      60% { transform: translateX(-3px) rotate(-0.35deg); }
+      80% { transform: translateX(3px) rotate(0.35deg); }
+      100% { transform: translateX(0) rotate(0deg); }
+    }
+
+    #welcome-panel-image.ready-shake,
+    .end-image.ready-shake {
+      animation: welcomeReadyShake 0.45s ease-in-out;
+    }
+
+
+    .school-burst-item {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: var(--item-size);
+      height: var(--item-size);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 2;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: var(--font-size);
+      font-weight: 900;
+      color: #ffffff;
+      text-shadow:
+        0 2px 0 rgba(21, 101, 192, 0.9),
+        0 3px 7px rgba(0, 0, 0, 0.28);
+      animation: schoolBurstPop 1600ms ease-out forwards;
+    }
+
+    @keyframes schoolBurstPop {
+      0% {
+        transform: translate(-50%, -50%) translate(0px, 0px) scale(0.45) rotate(0deg);
+        opacity: 0;
+      }
+      14% {
+        opacity: 1;
+      }
+      68% {
+        opacity: 0.95;
+      }
+      100% {
+        transform: translate(-50%, -50%) translate(var(--dx), var(--dy)) scale(var(--zoom)) rotate(var(--spin));
+        opacity: 0;
+      }
+    }
+
+  </style>
+</head>
+<body>
+
+  <div id="game-container">
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <div id="game-over">
+     <img src="./assets/end_lose_ready.png" class="end-image">
+  </div>
+
+  <div id="game-win">
+     <img src="./assets/end_win_ready.png" class="end-image">
+  </div>
+
+  <div id="welcome-screen" class="hidden">
+    <img id="welcome-panel-image" src="./assets/welcome_screen_panel_1_ready.png" alt="Welcome screen panel">
+  </div>
+
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // 🔒 Prevent mobile scrolling / zoom when touching the game
+    canvas.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+    canvas.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+
+    const gameOverScreen = document.getElementById('game-over');
+    const gameWinScreen = document.getElementById('game-win');
+    const welcomeScreen = document.getElementById('welcome-screen');
+    const welcomePanelImage = document.getElementById('welcome-panel-image');
+    const welcomePanels = [
+      './assets/welcome_screen_panel_1_ready.png',
+      './assets/welcome_screen_panel_2_ready.png'
+    ];
+    let welcomePanelIndex = 0;
+    let welcomeActive = false;
+    let welcomeStarted = false;
+    let welcomeTransitionPending = false;
+    let welcomePanelReady = false;
+    let welcomeWaitingForFirstTap = false;
+
+    // 🔊 Welcome voices + soft underwater ambience
+    const panelVoices = [
+      new Audio('./assets/panel_01_voice.mp3'),
+      new Audio('./assets/panel_02_voice.mp3')
+    ];
+    panelVoices.forEach(audio => {
+      audio.preload = 'auto';
+      audio.volume = 0.9;
+    });
+
+    // 🔊 End-screen voices: win and lose panels also lock until their voice finishes.
+    const endVoices = {
+      win: new Audio('./assets/end_win_voice.mp3'),
+      lose: new Audio('./assets/end_lose_voice.mp3')
+    };
+    Object.values(endVoices).forEach(audio => {
+      audio.preload = 'auto';
+      audio.volume = 0.9;
+    });
+
+    const ambienceMusic = new Audio('./assets/ambient_music.mp3');
+
+    // 🔊 Letter sounds
+    const letterSounds = {
+      letterA: new Audio('./assets/letter_a_sound.mp3'),
+      letterE: new Audio('./assets/letter_e_sound.mp3'),
+      letterI: new Audio('./assets/letter_i_sound.mp3'),
+      letterO: new Audio('./assets/letter_o_sound.mp3'),
+      letterU: new Audio('./assets/letter_u_sound.mp3')
+    };
+
+    Object.values(letterSounds).forEach(audio => {
+      audio.preload = 'auto';
+      audio.volume = 1.0;
+    });
+    
+    // 🔊 Goblin sound
+    const goblinSound = new Audio('./assets/goblin_sound.mp3');
+    goblinSound.preload = 'auto';
+    goblinSound.volume = 1.0;
+    ambienceMusic.preload = 'auto';
+    ambienceMusic.loop = false; // manual restart below gives smoother control than simple loop=true
+    ambienceMusic.volume = 0;
+
+    let ambienceStarted = false;
+    let ambienceFadeFrame = null;
+
+    // 🎚 Music balance controls
+    const AMBIENCE_GAME_VOLUME = 0.18;       // normal gameplay volume
+    const AMBIENCE_PANEL_VOLUME = 0.08;      // quieter during welcome panels
+    const AMBIENCE_VOICE_DUCK_VOLUME = 0.035; // very quiet while panel voices speak
+    const restartButton = document.getElementById('restart-button');
+    const playAgainButton = document.getElementById('play-again-button');
+
+    // Local folder requested by the user.
+    // If your browser blocks absolute local files, place this HTML in the same folder
+    // and change ASSET_FOLDER to './'.
+    const ASSET_FOLDER = './assets/';
+
+    const assetFiles = {
+      player: 'Little_Tommy_ready.png',
+      mine: 'goblin_ready.png',
+      letterA: 'letter_a_ready.png',
+      letterE: 'letter_e_ready.png',
+      letterI: 'letter_i_ready.png',
+      letterO: 'letter_o_ready.png',
+      letterU: 'letter_u_ready.png',
+      livesUI: 'lives_ready.png',
+      educationalUI: 'educational_level_ready.png',
+      // Optional: add background_ready.png to the same folder if you have one.
+      background: 'background_ready.png'
+    };
+
+    const images = {};
+    function loadImage(key, file) {
+      const img = new Image();
+      img.src = ASSET_FOLDER + file;
+      img.onload = () => img.ready = true;
+      img.onerror = () => img.ready = false;
+      images[key] = img;
+    }
+    Object.entries(assetFiles).forEach(([key, file]) => loadImage(key, file));
+
+    const laneCount = 5;
+    const laneWidth = canvas.width / laneCount;
+    const playerW = 88;
+    const playerH = 160;
+    const playerY = canvas.height - playerH - 28;
+    const goal = 100;
+
+    let playerLane, educationalLevel, lives, gameRunning, fallingObjects, waveTick, lifeAnimations, collectAnimations;
+    let currentLevel = 1;
+    let levelSpeedMultiplier = 1;
+    let gameResult = null; // "win" or "lose"
+    let ambientBubbles, currentStreaks;
+    let lastDamageTime;
+    let tapBursts = [];
+    let restartPending = false;
+    let ignoreNextEnter = false;
+    let endScreenReady = false;
+    let endScreenVoiceResult = null;
+    let isSwipeDragging = false;
+    let swipeStartX = 0;
+    let swipeMovedThisGesture = false;
+    const SWIPE_MOVE_THRESHOLD = 38;
+
+    const OBJECT_TYPES = [
+      { name: 'mine', image: 'mine', value: 0, harmful: true, w: 92, h: 92, chance: 0.26 },
+      // Letters are caught by Little Tommy: catching them increases the educational meter.
+      { name: 'letterA', image: 'letterA', value: 3, harmful: false, w: 54, h: 54, chance: 0.15 },
+      { name: 'letterE', image: 'letterE', value: 3, harmful: false, w: 54, h: 54, chance: 0.15 },
+      { name: 'letterI', image: 'letterI', value: 3, harmful: false, w: 64, h: 64, chance: 0.15 },
+      { name: 'letterO', image: 'letterO', value: 3, harmful: false, w: 54, h: 54, chance: 0.15 },
+      { name: 'letterU', image: 'letterU', value: 3, harmful: false, w: 54, h: 54, chance: 0.15 }
+    ];
+
+    function init(repeatSameLevel = true) {
+      levelSpeedMultiplier = 1 + (currentLevel - 1) * 0.18;
+      gameResult = null;
+      restartPending = false;
+      endScreenReady = false;
+      endScreenVoiceResult = null;
+      stopEndVoices();      
+      educationalLevel = 0;
+      lives = 3;
+      playerLane = Math.floor(laneCount / 2);
+      fallingObjects = [];
+      lifeAnimations = [];
+      collectAnimations = [];
+      ambientBubbles = createAmbientBubbles();
+      currentStreaks = createCurrentStreaks();
+      lastDamageTime = 0;
+      waveTick = 0;
+      gameRunning = true;
+      gameOverScreen.style.display = 'none';
+      gameWinScreen.style.display = 'none';
+    }
+
+    function chooseObjectType() {
+      const total = OBJECT_TYPES.reduce((sum, type) => sum + type.chance, 0);
+      let roll = Math.random() * total;
+      for (const type of OBJECT_TYPES) {
+        roll -= type.chance;
+        if (roll <= 0) return type;
+      }
+      return OBJECT_TYPES[0];
+    }
+
+    function addFallingObject() {
+      const type = chooseObjectType();
+      fallingObjects.push({
+        lane: Math.floor(Math.random() * laneCount),
+        y: -type.h,
+        type,
+        speed: (1.8 + Math.random() * 2.2) * levelSpeedMultiplier,
+        wobble: Math.random() * Math.PI * 2,
+        rotation: (Math.random() - 0.5) * 0.55,
+        lettersPhase: Math.random() * Math.PI * 2,
+        swimDirection: Math.random() < 0.5 ? -1 : 1
+      });
+    }
+
+    function movePlayer(direction) {
+      if (!gameRunning) return;
+      if (direction === 'left' && playerLane > 0) playerLane--;
+      if (direction === 'right' && playerLane < laneCount - 1) playerLane++;
+    }
+
+    function loseLife() {
+      if (!gameRunning || lives <= 0) return;
+
+      lives--;
+      lastDamageTime = performance.now();
+
+      // Animate the face turning into the white lost-life dot instead of hiding it instantly.
+      lifeAnimations.push({
+        index: lives,
+        start: performance.now(),
+        duration: 650
+      });
+
+      if (lives <= 0) {
+        gameRunning = false;
+        setTimeout(() => {
+          if (lives <= 0) gameOver();
+        }, 680);
+      }
+    }
+
+    function createCollectAnimation(obj) {
+      const objX = obj.lane * laneWidth + laneWidth / 2 + Math.sin(obj.wobble) * 6;
+      const objY = obj.y;
+      const playerX = playerLane * laneWidth + laneWidth / 2;
+      const playerCenterY = playerY + playerH / 2;
+
+      collectAnimations.push({
+        image: obj.type.image,
+        x: objX,
+        y: objY,
+        startX: objX,
+        startY: objY,
+        targetX: playerX,
+        targetY: playerCenterY - 10,
+        w: obj.type.w,
+        h: obj.type.h,
+        rotation: obj.rotation,
+        harmful: obj.type.harmful,
+        typeName: obj.type.name,
+        start: performance.now(),
+        duration: obj.type.harmful ? 720 : 620,
+        sparkles: Array.from({ length: obj.type.harmful ? 18 : 10 }, () => ({
+          angle: Math.random() * Math.PI * 2,
+          distance: 10 + Math.random() * (obj.type.harmful ? 58 : 28),
+          size: 2 + Math.random() * (obj.type.harmful ? 5 : 3),
+          speed: 0.6 + Math.random() * 1.2
+        }))
+      });
+    }
+
+    function update() {
+      if (welcomeActive) return;
+      if (!gameRunning) return;
+      waveTick += 0.003;
+
+      for (let i = fallingObjects.length - 1; i >= 0; i--) {
+        const obj = fallingObjects[i];
+        obj.y += obj.speed;
+        obj.wobble += 0.008;
+
+        if (obj.y > canvas.height + obj.type.h) {
+          fallingObjects.splice(i, 1);
+          continue;
+        }
+
+        const playerX = playerLane * laneWidth + laneWidth / 2;
+        const objX = obj.lane * laneWidth + laneWidth / 2 + Math.sin(obj.wobble) * 6;
+        const dx = playerX - objX;
+        const dy = (playerY + playerH / 2) - obj.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance < 60) {
+          createCollectAnimation(obj);
+          if (obj.type.harmful) {
+
+            goblinSound.currentTime = 0;
+            goblinSound.play().catch(() => {});
+
+            loseLife();
+          } else {
+
+            // 🔊 Play letter sound
+            const sound = letterSounds[obj.type.name];
+            if (sound) {
+              sound.currentTime = 0;
+              sound.play().catch(() => {});
+            }
+
+            educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
+            if (educationalLevel >= goal) gameWin();
+          }
+          fallingObjects.splice(i, 1);
+        }
+      }
+
+      if (Math.random() < 0.025) addFallingObject();
+    }
+
+    function drawImageCentered(key, x, y, w, h, rotation = 0, fallback) {
+      const img = images[key];
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rotation);
+      if (img && img.ready) {
+        // Keep PNG proportions intact so letters and other items never look stretched.
+        const scale = Math.min(w / img.naturalWidth, h / img.naturalHeight);
+        const drawW = img.naturalWidth * scale;
+        const drawH = img.naturalHeight * scale;
+        ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+      } else if (fallback) {
+        fallback(w, h);
+      }
+      ctx.restore();
+    }
+
+
+
+    function isLettersType(type) {
+      return type && type.name && type.name.startsWith('letter');
+    }
+
+    function drawImageCenteredAnimated(key, x, y, w, h, rotation = 0, scaleX = 1, scaleY = 1, fallback) {
+      const img = images[key];
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rotation);
+      ctx.scale(scaleX, scaleY);
+      if (img && img.ready) {
+        const scale = Math.min(w / img.naturalWidth, h / img.naturalHeight);
+        const drawW = img.naturalWidth * scale;
+        const drawH = img.naturalHeight * scale;
+        ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+      } else if (fallback) {
+        fallback(w, h);
+      }
+      ctx.restore();
+    }
+
+    function drawLettersSwim(obj, x) {
+      // Letters have their own soft swimming motion while they fall:
+      // a side-to-side drift, a gentle body wiggle, and tiny bubbles behind them.
+      const t = waveTick * 10 + obj.lettersPhase;
+      const swimX = x + Math.sin(t * 1.35) * 8 * obj.swimDirection;
+      const swimY = obj.y + Math.sin(t * 1.8) * 3;
+      const bodyWiggle = Math.sin(t * 2.4) * 0.16;
+      const squash = 1 + Math.sin(t * 2.4) * 0.035;
+      const stretch = 1 - Math.sin(t * 2.4) * 0.025;
+      const swimRotation = obj.rotation + bodyWiggle;
+
+      // Letter trail bubbles removed.
+
+      drawImageCenteredAnimated(
+        obj.type.image,
+        swimX,
+        swimY,
+        obj.type.w,
+        obj.type.h,
+        swimRotation,
+        squash,
+        stretch,
+        (w, h) => drawFallbackObject(obj.type, w, h)
+      );
+    }
+
+
+
+    function createAmbientBubbles() {
+      return Array.from({ length: 28 }, () => ({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        radius: 0.8 + Math.random() * 4.1,
+        speed: 0.12 + Math.random() * 0.6,
+        drift: 0.15 + Math.random() * 2.0,
+        phase: Math.random() * Math.PI * 2,
+        alpha: 0.035 + Math.random() * 0.3
+      }));
+    }
+
+    function createCurrentStreaks() {
+      return Array.from({ length: 16 }, () => ({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        length: 35 + Math.random() * 70,
+        speed: 0.12 + Math.random() * 0.35,
+        alpha: 0.05 + Math.random() * 0.10,
+        phase: Math.random() * Math.PI * 2
+      }));
+    }
+
+    function drawUnderwaterAtmosphere() {
+      // Background water animation and moving light rays removed.
+      // Keep this function empty so the rest of the game code stays unchanged.
+    }
+
+    function drawBackground() {
+      if (images.background && images.background.ready) {
+        ctx.drawImage(images.background, 0, 0, canvas.width, canvas.height);
+        return;
+      }
+
+      const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+      gradient.addColorStop(0, '#2be6ef');
+      gradient.addColorStop(0.48, '#07bfd7');
+      gradient.addColorStop(1, '#0682bd');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.globalAlpha = 0.18;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      for (let y = 25; y < canvas.height; y += 32) {
+        ctx.beginPath();
+        for (let x = 0; x <= canvas.width; x += 20) {
+          const yy = y + Math.sin(x * 0.045 + waveTick * 4 + y) * 4;
+          x === 0 ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy);
+        }
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+
+      ctx.strokeStyle = 'rgba(220, 255, 255, 0.35)';
+      ctx.lineWidth = 4;
+      for (let i = 1; i < laneCount; i++) {
+        const x = i * laneWidth;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = '#eaffb6';
+      ctx.lineWidth = 5;
+      ctx.strokeRect(6, 6, canvas.width - 12, canvas.height - 12);
+      ctx.strokeStyle = '#0b6da0';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(11, 11, canvas.width - 22, canvas.height - 22);
+    }
+
+    function roundedRect(x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+
+    function drawUI() {
+      const livesX = 13;
+      const livesY = 18;
+      const livesW = 150;
+      const livesH = 80;
+      if (images.livesUI && images.livesUI.ready) ctx.drawImage(images.livesUI, livesX, livesY, livesW, livesH);
+      else {
+        roundedRect(20, 16, 140, 70, 10);
+        ctx.fillStyle = '#176bc5'; ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Arial'; ctx.fillText('LIVES', 34, 38);
+      }
+
+      // The lives_ready.png already contains the three face icons.
+      // Draw nothing on top at the start; only cover lost lives with a full white circle.
+      // Lost-life covers are positioned from the proportions of lives_ready.png.
+      // First and last life centers are measured as ratios of the full UI image,
+      // and the middle life is calculated exactly halfway between them.
+      // This keeps all three white circles mathematically centered and consistent.
+      const lifeCenterStartRatio = 0.250;
+      const lifeCenterEndRatio = 0.745;
+      const lifeCenterYRatio = 0.590;
+      const lifeRadiusRatio = 0.090;
+      const lifeCenterStepRatio = (lifeCenterEndRatio - lifeCenterStartRatio) / 2;
+
+      const lostLifeY = livesY + livesH * lifeCenterYRatio;
+      const lostLifeRadius = livesW * lifeRadiusRatio;
+      for (let i = lives; i < 3; i++) {
+        const lostLifeX = livesX + livesW * (lifeCenterStartRatio + lifeCenterStepRatio * i);
+        const anim = lifeAnimations.find(a => a.index === i);
+        let progress = 1;
+
+        if (anim) {
+          progress = Math.min(1, (performance.now() - anim.start) / anim.duration);
+        }
+
+        // Smooth ease-out animation: the white cover grows gently over the face.
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const animatedRadius = lostLifeRadius * eased;
+
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, 0.25 + eased * 0.75);
+        ctx.beginPath();
+        ctx.fillStyle = '#ffffff';
+        ctx.arc(lostLifeX, lostLifeY, animatedRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Small soft ring while the life is disappearing, for a nicer polished effect.
+        if (progress < 1) {
+          ctx.globalAlpha = 1 - progress;
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.arc(lostLifeX, lostLifeY, lostLifeRadius * (0.65 + progress * 0.65), 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      if (images.educationalUI && images.educationalUI.ready) ctx.drawImage(images.educationalUI, 162, 10, 200, 90);
+      else {
+        roundedRect(170, 16, 180, 70, 10);
+        ctx.fillStyle = '#176bc5'; ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Arial'; ctx.fillText('CLEAN LEVEL', 184, 38);
+      }
+
+      // Draw the blue fill clipped inside the white bar. This avoids the small blue
+      // artifact that appeared at the upper-left when the value was 0 or very low.
+      const barX = 188;
+      const barY = 55;
+      const barW = 86;
+      const barH = 14;
+      const fillW = Math.max(0, Math.min(barW, barW * educationalLevel / goal));
+      if (fillW > 0.5) {
+        ctx.save();
+        roundedRect(barX, barY, barW, barH, 7);
+        ctx.clip();
+        ctx.fillStyle = '#2f8de8';
+        ctx.fillRect(barX, barY, fillW, barH);
+        ctx.restore();
+      }
+
+      // Keep the numbers clean and readable in the right-side number area.
+      ctx.save();
+      ctx.fillStyle = '#073b88';
+      ctx.font = 'bold 14px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${educationalLevel} / ${goal}`, 314, 62);
+      ctx.restore();
+
+      // Level number
+      ctx.save();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 16px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(`Level ${currentLevel}`, canvas.width / 2, 105);
+      ctx.restore();   
+    }
+
+    function drawCollectAnimations() {
+      const now = performance.now();
+
+      for (let i = collectAnimations.length - 1; i >= 0; i--) {
+        const anim = collectAnimations[i];
+        const progress = Math.min(1, (now - anim.start) / anim.duration);
+        const eased = 1 - Math.pow(1 - progress, 3);
+
+        if (anim.harmful) {
+          // Naval mines should feel dangerous: they do not get the friendly collection effect.
+          // They flash, burst outward, and leave a small smoky explosion near the robot.
+          const blastX = anim.startX + (anim.targetX - anim.startX) * Math.min(1, progress * 1.15);
+          const blastY = anim.startY + (anim.targetY - anim.startY) * Math.min(1, progress * 1.15);
+          const ringRadius = 12 + progress * 58;
+
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, 1 - progress * 1.15);
+          drawImageCentered(anim.image, blastX, blastY, anim.w * (1 + progress * 0.35), anim.h * (1 + progress * 0.35), anim.rotation + progress * Math.PI * 2.8, (w, h) => drawFallbackObject({ harmful: true }, w, h));
+          ctx.restore();
+
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, 0.8 - progress * 0.75);
+          ctx.lineWidth = 5;
+          ctx.strokeStyle = '#fff4a8';
+          ctx.beginPath();
+          ctx.arc(blastX, blastY, ringRadius, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.lineWidth = 4;
+          ctx.strokeStyle = '#ff7a1a';
+          ctx.beginPath();
+          ctx.arc(blastX, blastY, ringRadius * 0.72, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+
+          ctx.save();
+          ctx.globalAlpha = Math.max(0, 1 - progress);
+          for (const sparkle of anim.sparkles) {
+            const sparkleDistance = sparkle.distance * (0.25 + progress * 1.7) * sparkle.speed;
+            const sx = blastX + Math.cos(sparkle.angle) * sparkleDistance;
+            const sy = blastY + Math.sin(sparkle.angle) * sparkleDistance + progress * 10;
+            ctx.beginPath();
+            ctx.fillStyle = progress < 0.45 ? '#ffd34d' : '#5c6b74';
+            ctx.arc(sx, sy, sparkle.size * (1 - progress * 0.55), 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        } else {
+          const x = anim.startX + (anim.targetX - anim.startX) * eased;
+          const y = anim.startY + (anim.targetY - anim.startY) * eased - Math.sin(progress * Math.PI) * 18;
+          const scale = Math.max(0.05, 1 - eased * 0.85);
+          const spin = anim.rotation + progress * Math.PI * 2.2;
+
+          ctx.save();
+          ctx.globalAlpha = 1 - progress * 0.75;
+          drawImageCentered(anim.image, x, y, anim.w * scale, anim.h * scale, spin, (w, h) => drawFallbackObject({ harmful: false }, w, h));
+          ctx.restore();
+
+          // Friendly sparkle/bubble burst around the collected object.
+          ctx.save();
+          ctx.globalAlpha = 1 - progress;
+          for (const sparkle of anim.sparkles) {
+            const sparkleDistance = sparkle.distance * (0.45 + progress * 1.6);
+            const sx = anim.startX + Math.cos(sparkle.angle) * sparkleDistance;
+            const sy = anim.startY + Math.sin(sparkle.angle) * sparkleDistance - progress * 12;
+            ctx.beginPath();
+            ctx.fillStyle = '#dffcff';
+            ctx.arc(sx, sy, sparkle.size * (1 - progress * 0.45), 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        }
+
+        if (progress >= 1) collectAnimations.splice(i, 1);
+      }
+    }
+
+    function drawFallbackPlayer(w, h) {
+      ctx.fillStyle = '#1e7bff';
+      ctx.fillRect(-w / 2, -h / 2, w, h);
+    }
+
+    function drawFallbackObject(type, w, h) {
+      if (type.harmful) {
+        ctx.strokeStyle = '#d91515'; ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.moveTo(-w/2, -h/2); ctx.lineTo(w/2, h/2); ctx.moveTo(w/2, -h/2); ctx.lineTo(-w/2, h/2); ctx.stroke();
+      } else {
+        ctx.fillStyle = '#ffd924';
+        ctx.beginPath(); ctx.arc(0, 0, Math.min(w,h)/2, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawBackground();
+      drawUnderwaterAtmosphere();
+
+      for (const obj of fallingObjects) {
+        const x = obj.lane * laneWidth + laneWidth / 2 + Math.sin(obj.wobble) * 6;
+        if (isLettersType(obj.type)) {
+          drawLettersSwim(obj, x);
+        } else {
+          const underwaterBob = Math.sin(waveTick * 8 + obj.wobble) * 2.2;
+          const underwaterTilt = Math.sin(waveTick * 6 + obj.wobble) * 0.05;
+          drawImageCentered(obj.type.image, x, obj.y + underwaterBob, obj.type.w, obj.type.h, obj.rotation + underwaterTilt, (w, h) => drawFallbackObject(obj.type, w, h));
+        }
+      }
+
+      drawCollectAnimations();
+
+      const playerX = playerLane * laneWidth + laneWidth / 2;
+      const playerCenterY = playerY + playerH / 2;
+      const hitProgress = Math.min(1, (performance.now() - lastDamageTime) / 420);
+      const shake = hitProgress < 1 ? Math.sin(hitProgress * Math.PI * 10) * (1 - hitProgress) * 6 : 0;
+      const robotFloat = Math.sin(waveTick * 9) * 2.6;
+      const robotTilt = Math.sin(waveTick * 7) * 0.032;
+      const robotPulse = 1 + Math.sin(waveTick * 8) * 0.012;      
+
+      // 🔵 Bubble thrusters (underwater propulsion)
+      const thrusterTime = waveTick * 16;
+
+      // Positions relative to robot center (tweak if needed)
+      const leftFootX = playerX - playerW * 0.10 + shake;
+      const rightFootX = playerX + playerW * 0.05 + shake;
+      const leftFootY = playerCenterY + playerH * 0.40 + robotFloat;
+      const rightFootY = playerCenterY + playerH * 0.27 + robotFloat;
+
+      drawImageCenteredAnimated('player', playerX + shake, playerCenterY + robotFloat, playerW, playerH, robotTilt, robotPulse, robotPulse, drawFallbackPlayer);
+      drawUI();
+
+      // Draw bubbles
+      ctx.save();
+      for (let side of [leftFootX, rightFootX]) {
+        for (let i = 0; i < 4; i++) {
+          const t = thrusterTime + i * 0.8;
+
+          const bx = side;
+          const by = (side === leftFootX ? leftFootY : rightFootY) + i * 6;
+
+          const size = 3 + Math.sin(t * 4 + i) * 1.4;
+
+          ctx.globalAlpha = 0.35 + Math.random() * 0.2;
+          ctx.beginPath();
+          ctx.fillStyle = '#dffcff';
+          ctx.arc(bx, by, size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+
+      drawTapBursts();
+    }
+
+
+    function getCanvasPointFromEvent(e) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (e.clientX - rect.left) * (canvas.width / rect.width),
+        y: (e.clientY - rect.top) * (canvas.height / rect.height)
+      };
+    }
+
+    function createTapBurst(x, y) {
+      const schoolSymbols = ['a', 'e', 'i', 'o', 'u', 'A+', '★', '✓'];
+
+      tapBursts.push({
+        particles: Array.from({ length: 12 }, () => {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 0.55 + Math.random() * 1.15;
+          return {
+            x,
+            y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed * 0.65,
+            size: 22 + Math.random() * 18,
+            life: 1,
+            spin: (Math.random() - 0.5) * 0.11,
+            rotation: (Math.random() - 0.5) * 0.8,
+            symbol: schoolSymbols[Math.floor(Math.random() * schoolSymbols.length)]
+          };
+        })
+      });
+    }
+
+    function drawTapBursts() {
+      for (let i = tapBursts.length - 1; i >= 0; i--) {
+        const burst = tapBursts[i];
+
+        for (const p of burst.particles) {
+          // School-themed click effect: small vowels, stars, and check marks pop outward.
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vx *= 0.965;
+          p.vy = p.vy * 0.965 - 0.006;
+          p.rotation += p.spin;
+          p.life -= 0.017;
+
+          if (p.life > 0) {
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, p.life);
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.rotation);
+            ctx.font = `bold ${p.size}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = 'rgba(21, 101, 192, 0.9)';
+            ctx.fillStyle = '#ffffff';
+            ctx.strokeText(p.symbol, 0, 0);
+            ctx.fillText(p.symbol, 0, 0);
+            ctx.restore();
+          }
+        }
+
+        if (burst.particles.every(p => p.life <= 0)) {
+          tapBursts.splice(i, 1);
+        }
+      }
+    }
+
+    function createEndScreenBurst(screen) {
+      if (!screen) return;
+
+      const schoolSymbols = ['a', 'e', 'i', 'o', 'u', 'A+', '★', '✓'];
+
+      for (let i = 0; i < 20; i++) {
+        const item = document.createElement('span');
+        item.className = 'school-burst-item';
+        item.textContent = schoolSymbols[Math.floor(Math.random() * schoolSymbols.length)];
+
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 135 + Math.random() * 135;
+        const size = 28 + Math.random() * 24;
+        const zoom = 1.75 + Math.random() * 0.75;
+        const spin = `${(Math.random() < 0.5 ? -1 : 1) * (90 + Math.random() * 140)}deg`;
+
+        item.style.setProperty('--dx', `${Math.cos(angle) * distance}px`);
+        item.style.setProperty('--dy', `${Math.sin(angle) * distance * 0.65}px`);
+        item.style.setProperty('--item-size', `${size}px`);
+        item.style.setProperty('--font-size', `${size}px`);
+        item.style.setProperty('--zoom', zoom);
+        item.style.setProperty('--spin', spin);
+
+        item.addEventListener('animationend', () => item.remove());
+        screen.appendChild(item);
+      }
+    }
+
+    function restartOrContinueWithBurst(e) {
+      // Win/lose panels cannot be skipped until their voice has finished.
+      if (gameRunning || restartPending || !endScreenReady) return;
+
+      const activeEndScreen = gameResult === "win" ? gameWinScreen : gameOverScreen;
+      createEndScreenBurst(activeEndScreen);
+
+      // Keep the canvas version too, in case the tap happens directly on canvas.
+      if (e && typeof e.clientX === 'number') {
+        const point = getCanvasPointFromEvent(e);
+        createTapBurst(point.x, point.y);
+      } else {
+        createTapBurst(canvas.width / 2, canvas.height / 2);
+      }
+
+      restartPending = true;
+
+      setTimeout(() => {
+        if (gameResult === "win") {
+          currentLevel++;
+          init();
+        } else if (gameResult === "lose") {
+          init();
+        }
+      }, 620);
+    }
+
+    function showWelcomePanel(index) {
+      if (!welcomePanelImage) return;
+      welcomePanelReady = false;
+      welcomePanelImage.classList.remove('ready-shake');
+      welcomePanelImage.src = welcomePanels[index];
+      if (index >= 0 && index < welcomePanels.length) {
+        playWelcomePanelVoice(index);
+      }
+    }
+
+    function finishWelcomePanelAdvance() {
+      welcomePanelIndex++;
+
+      if (welcomePanelIndex >= welcomePanels.length) {
+        welcomeActive = false;
+        welcomePanelReady = false;
+        if (welcomePanelImage) welcomePanelImage.classList.remove('ready-shake');
+        stopPanelVoices();
+        fadeAmbienceTo(AMBIENCE_GAME_VOLUME, 1200);
+        if (welcomeScreen) welcomeScreen.classList.add('hidden');
+      } else {
+        showWelcomePanel(welcomePanelIndex);
+      }
+    }
+
+    function advanceWelcomePanel() {
+      // Do not allow skipping the story panels while their voice is still playing.
+      if (!welcomeActive || welcomeTransitionPending || !welcomePanelReady) return;
+
+      startAmbience(AMBIENCE_PANEL_VOLUME);
+
+      // Use the same bubble burst effect as the win/lose panels before changing panels.
+      createEndScreenBurst(welcomeScreen);
+      welcomePanelReady = false;
+      welcomeTransitionPending = true;
+
+      setTimeout(() => {
+        welcomeTransitionPending = false;
+        finishWelcomePanelAdvance();
+      }, 620);
+    }
+
+    function markWelcomePanelReady() {
+      if (!welcomeActive || !welcomePanelImage) return;
+      welcomePanelReady = true;
+      welcomePanelImage.classList.remove('ready-shake');
+      void welcomePanelImage.offsetWidth;
+      welcomePanelImage.classList.add('ready-shake');
+    }
+
+    function stopPanelVoices() {
+      panelVoices.forEach(audio => {
+        audio.pause();
+        audio.currentTime = 0;
+        audio.onended = null;
+      });
+    }
+
+    function playWelcomePanelVoice(index) {
+      if (!panelVoices[index]) return;
+
+      stopPanelVoices();
+      startAmbience(AMBIENCE_VOICE_DUCK_VOLUME);
+
+      const voice = panelVoices[index];
+      voice.currentTime = 0;
+      voice.onended = () => {
+        if (welcomeActive && welcomePanelIndex === index) {
+          fadeAmbienceTo(AMBIENCE_PANEL_VOLUME, 700);
+          markWelcomePanelReady();
+        }
+      };
+
+      const playPromise = voice.play();
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(() => {
+          // If a browser blocks the voice, do not skip instantly; show the cue shortly after.
+          fadeAmbienceTo(AMBIENCE_PANEL_VOLUME, 700);
+          setTimeout(() => {
+            if (welcomeActive && welcomePanelIndex === index) markWelcomePanelReady();
+          }, 1200);
+        });
+      }
+    }
+
+    function fadeAmbienceTo(targetVolume, duration = 900) {
+      if (!ambienceMusic) return;
+
+      if (ambienceFadeFrame) {
+        cancelAnimationFrame(ambienceFadeFrame);
+        ambienceFadeFrame = null;
+      }
+
+      const startVolume = ambienceMusic.volume || 0;
+      const startTime = performance.now();
+
+      function step(now) {
+        const progress = Math.min(1, (now - startTime) / duration);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        ambienceMusic.volume = startVolume + (targetVolume - startVolume) * eased;
+
+        if (progress < 1) {
+          ambienceFadeFrame = requestAnimationFrame(step);
+        } else {
+          ambienceMusic.volume = targetVolume;
+          ambienceFadeFrame = null;
+        }
+      }
+
+      ambienceFadeFrame = requestAnimationFrame(step);
+    }
+
+    function startAmbience(targetVolume = AMBIENCE_PANEL_VOLUME) {
+      if (ambienceStarted) {
+        fadeAmbienceTo(targetVolume, 700);
+        return;
+      }
+
+      ambienceStarted = true;
+      ambienceMusic.volume = 0;
+
+      // ✅ Seamless-style manual loop: when the file ends, restart it immediately.
+      ambienceMusic.addEventListener('ended', () => {
+        ambienceMusic.currentTime = 0;
+        const replayPromise = ambienceMusic.play();
+        if (replayPromise && typeof replayPromise.catch === 'function') {
+          replayPromise.catch(() => {});
+        }
+      });
+
+      const playPromise = ambienceMusic.play();
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(() => {
+          // Browser may block until next user interaction. The next tap/key will call startAmbience again.
+          ambienceStarted = false;
+        });
+      }
+
+      fadeAmbienceTo(targetVolume, 1000);
+    }
+
+    function isLockScreenVisible() {
+      return false;
+    }
+
+    function startWelcomeSequence() {
+      if (welcomeStarted) return;
+
+      welcomeStarted = true;
+      welcomeActive = true;
+      welcomePanelIndex = 0;
+      welcomeTransitionPending = false;
+      welcomePanelReady = false;
+      welcomeWaitingForFirstTap = true;
+
+      if (welcomePanelImage) {
+        welcomePanelImage.classList.remove('ready-shake');
+        welcomePanelImage.src = welcomePanels[0];
+      }
+
+      if (welcomeScreen) welcomeScreen.classList.remove('hidden');
+    }
+
+    function startFirstWelcomePanelAudio() {
+      if (!welcomeActive || !welcomeWaitingForFirstTap) return;
+
+      welcomeWaitingForFirstTap = false;
+      welcomePanelReady = false;
+
+      if (welcomePanelImage) {
+        welcomePanelImage.classList.remove('ready-shake');
+      }
+
+      showWelcomePanel(0);
+    }
+
+    function getEndScreenImage(result) {
+      const screen = result === "win" ? gameWinScreen : gameOverScreen;
+      return screen ? screen.querySelector('.end-image') : null;
+    }
+
+    function stopEndVoices() {
+      Object.values(endVoices).forEach(audio => {
+        audio.pause();
+        audio.currentTime = 0;
+        audio.onended = null;
+      });
+    }
+
+    function markEndScreenReady(result) {
+      if (gameRunning || gameResult !== result) return;
+
+      endScreenReady = true;
+      endScreenVoiceResult = null;
+      fadeAmbienceTo(AMBIENCE_PANEL_VOLUME, 700);
+
+      const img = getEndScreenImage(result);
+      if (img) {
+        img.classList.remove('ready-shake');
+        void img.offsetWidth;
+        img.classList.add('ready-shake');
+      }
+    }
+
+    function playEndScreenVoice(result) {
+      const voice = endVoices[result];
+      endScreenReady = false;
+      endScreenVoiceResult = result;
+
+      const img = getEndScreenImage(result);
+      if (img) img.classList.remove('ready-shake');
+
+      stopEndVoices();
+      startAmbience(AMBIENCE_VOICE_DUCK_VOLUME);
+
+      if (!voice) {
+        setTimeout(() => markEndScreenReady(result), 700);
+        return;
+      }
+
+      voice.currentTime = 0;
+      voice.onended = () => markEndScreenReady(result);
+
+      const playPromise = voice.play();
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(() => {
+          // If a browser blocks the end voice, still do not allow instant skip.
+          setTimeout(() => markEndScreenReady(result), 1200);
+        });
+      }
+    }
+
+    function gameOver() {
+      gameRunning = false;
+      gameResult = "lose";
+      gameOverScreen.style.display = 'flex';
+      playEndScreenVoice("lose");
+    }
+
+    function gameWin() {
+      gameRunning = false;
+      gameResult = "win";
+      gameWinScreen.style.display = 'flex';
+      playEndScreenVoice("win");
+    }
+
+    function gameLoop() {
+      update();
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (isLockScreenVisible()) return;
+
+      startAmbience(welcomeActive ? AMBIENCE_PANEL_VOLUME : AMBIENCE_GAME_VOLUME);
+
+      if (ignoreNextEnter && e.key === 'Enter') {
+        return;
+      }
+
+      if (welcomeActive && e.key === 'Enter') {
+        if (welcomeWaitingForFirstTap) {
+          startFirstWelcomePanelAudio();
+        } else {
+          advanceWelcomePanel();
+        }
+        return;
+      }
+
+      // 🎮 Restart / continue with Enter when game is over or won
+      if (!gameRunning) {
+        if (e.key === 'Enter') {
+          restartOrContinueWithBurst();
+        }
+        return;
+      }
+
+     // 🎮 Normal movement controls
+     if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') movePlayer('left');
+     if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') movePlayer('right');
+   });
+
+    canvas.addEventListener('pointerdown', (e) => {
+      if (isLockScreenVisible()) return;
+
+      startAmbience(welcomeActive ? AMBIENCE_PANEL_VOLUME : AMBIENCE_GAME_VOLUME);
+
+      if (welcomeActive) {
+        if (welcomeWaitingForFirstTap) {
+          startFirstWelcomePanelAudio();
+        } else {
+          advanceWelcomePanel();
+        }
+        return;
+   }
+
+      if (!gameRunning) {
+        restartOrContinueWithBurst(e);
+        return;
+      }
+
+      // One-finger lane-swipe controls for mobile/tablet:
+      // one complete swipe gesture moves Teamy by only ONE corridor/lane.
+      isSwipeDragging = true;
+      swipeStartX = e.clientX;
+      swipeMovedThisGesture = false;
+      canvas.setPointerCapture?.(e.pointerId);
+    });
+
+    canvas.addEventListener('pointermove', (e) => {
+      if (!isSwipeDragging || !gameRunning || welcomeActive || isLockScreenVisible()) return;
+      if (swipeMovedThisGesture) return;
+
+      const deltaX = e.clientX - swipeStartX;
+      if (Math.abs(deltaX) < SWIPE_MOVE_THRESHOLD) return;
+
+      if (deltaX < 0) {
+        movePlayer('left');
+      } else {
+        movePlayer('right');
+      }
+
+      // Lock this gesture after one lane move. The player must lift their finger
+      // and swipe again to move another corridor, like Subway-style controls.
+      swipeMovedThisGesture = true;
+    });
+
+    canvas.addEventListener('pointerup', (e) => {
+      isSwipeDragging = false;
+      swipeMovedThisGesture = false;
+      canvas.releasePointerCapture?.(e.pointerId);
+    });
+
+    canvas.addEventListener('pointercancel', () => {
+      isSwipeDragging = false;
+      swipeMovedThisGesture = false;
+    });
+
+    if (welcomeScreen) {
+      welcomeScreen.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+
+        if (isLockScreenVisible() || !welcomeActive) return;
+
+        if (welcomeWaitingForFirstTap) {
+          startFirstWelcomePanelAudio();
+        } else {
+          startAmbience(AMBIENCE_PANEL_VOLUME);
+          advanceWelcomePanel();
+        }
+      });
+    }
+
+    gameOverScreen.addEventListener('pointerdown', restartOrContinueWithBurst);
+    gameWinScreen.addEventListener('pointerdown', restartOrContinueWithBurst);
+
+    init();
+    startWelcomeSequence();
+    gameLoop();
+
+  </script>
+</body>
+</html>
