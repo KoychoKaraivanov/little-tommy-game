@@ -262,21 +262,7 @@
 
     const ambienceMusic = new Audio('./assets/ambient_music.mp3');
 
-    // 🔊 Letter sounds
-    const letterSounds = {
-      letterA: new Audio('./assets/letter_a_sound.mp3'),
-      letterE: new Audio('./assets/letter_e_sound.mp3'),
-      letterI: new Audio('./assets/letter_i_sound.mp3'),
-      letterO: new Audio('./assets/letter_o_sound.mp3'),
-      letterU: new Audio('./assets/letter_u_sound.mp3')
-    };
-
-    Object.values(letterSounds).forEach(audio => {
-      audio.preload = 'auto';
-      audio.volume = 1.0;
-    });
-    
-    // 🔊 Goblin sound
+// 🔊 Goblin sound
     const goblinSound = new Audio('./assets/goblin_sound.mp3');
     goblinSound.preload = 'auto';
     goblinSound.volume = 1.0;
@@ -1118,6 +1104,7 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
       if (!panelVoices[index]) return;
 
       stopPanelVoices();
+      startAmbience(AMBIENCE_VOICE_DUCK_VOLUME);
 
       const voice = panelVoices[index];
       voice.currentTime = 0;
@@ -1128,21 +1115,15 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
         }
       };
 
-      // Android needs the voice itself to be started directly from the first tap.
-      // Start the panel voice first, then start the ambience quietly after it is unlocked.
       const playPromise = voice.play();
-      if (playPromise && typeof playPromise.then === 'function') {
-        playPromise
-          .then(() => startAmbience(AMBIENCE_VOICE_DUCK_VOLUME))
-          .catch(() => {
-            // If a browser blocks the voice, do not skip instantly; show the cue shortly after.
-            startAmbience(AMBIENCE_PANEL_VOLUME);
-            setTimeout(() => {
-              if (welcomeActive && welcomePanelIndex === index) markWelcomePanelReady();
-            }, 1200);
-          });
-      } else {
-        startAmbience(AMBIENCE_VOICE_DUCK_VOLUME);
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(() => {
+          // If a browser blocks the voice, do not skip instantly; show the cue shortly after.
+          fadeAmbienceTo(AMBIENCE_PANEL_VOLUME, 700);
+          setTimeout(() => {
+            if (welcomeActive && welcomePanelIndex === index) markWelcomePanelReady();
+          }, 1200);
+        });
       }
     }
 
@@ -1232,9 +1213,44 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
 
       if (welcomePanelImage) {
         welcomePanelImage.classList.remove('ready-shake');
+        welcomePanelImage.src = welcomePanels[0];
       }
 
-      showWelcomePanel(0);
+      // Android Chrome needs the first sound to start directly from the user's tap.
+      // So we play the panel voice first, and only then start/fade the ambience.
+      stopPanelVoices();
+
+      const voice = panelVoices[0];
+      if (!voice) {
+        markWelcomePanelReady();
+        return;
+      }
+
+      voice.currentTime = 0;
+      voice.onended = () => {
+        if (welcomeActive && welcomePanelIndex === 0) {
+          fadeAmbienceTo(AMBIENCE_PANEL_VOLUME, 700);
+          markWelcomePanelReady();
+        }
+      };
+
+      const playPromise = voice.play();
+
+      if (playPromise && typeof playPromise.then === 'function') {
+        playPromise
+          .then(() => {
+            startAmbience(AMBIENCE_VOICE_DUCK_VOLUME);
+          })
+          .catch(() => {
+            // If Chrome still blocks audio, keep the panel locked briefly,
+            // then show the shake cue so the player can tap again.
+            setTimeout(() => {
+              if (welcomeActive && welcomePanelIndex === 0) markWelcomePanelReady();
+            }, 1200);
+          });
+      } else {
+        startAmbience(AMBIENCE_VOICE_DUCK_VOLUME);
+      }
     }
 
     function getEndScreenImage(result) {
@@ -1316,7 +1332,9 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
     document.addEventListener('keydown', (e) => {
       if (isLockScreenVisible()) return;
 
-      startAmbience(welcomeActive ? AMBIENCE_PANEL_VOLUME : AMBIENCE_GAME_VOLUME);
+      if (!(welcomeActive && welcomeWaitingForFirstTap)) {
+        startAmbience(welcomeActive ? AMBIENCE_PANEL_VOLUME : AMBIENCE_GAME_VOLUME);
+      }
 
       if (ignoreNextEnter && e.key === 'Enter') {
         return;
@@ -1347,17 +1365,18 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
     canvas.addEventListener('pointerdown', (e) => {
       if (isLockScreenVisible()) return;
 
+      if (!(welcomeActive && welcomeWaitingForFirstTap)) {
+        startAmbience(welcomeActive ? AMBIENCE_PANEL_VOLUME : AMBIENCE_GAME_VOLUME);
+      }
+
       if (welcomeActive) {
         if (welcomeWaitingForFirstTap) {
           startFirstWelcomePanelAudio();
         } else {
-          startAmbience(AMBIENCE_PANEL_VOLUME);
           advanceWelcomePanel();
         }
         return;
    }
-
-      startAmbience(AMBIENCE_GAME_VOLUME);
 
       if (!gameRunning) {
         restartOrContinueWithBurst(e);
@@ -1404,6 +1423,7 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
     if (welcomeScreen) {
       welcomeScreen.addEventListener('pointerdown', (e) => {
         e.preventDefault();
+        e.stopPropagation();
 
         if (isLockScreenVisible() || !welcomeActive) return;
 
@@ -1414,6 +1434,19 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
           advanceWelcomePanel();
         }
       });
+    }
+
+    if (welcomeScreen) {
+      welcomeScreen.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (isLockScreenVisible() || !welcomeActive) return;
+
+        if (welcomeWaitingForFirstTap) {
+          startFirstWelcomePanelAudio();
+        }
+      }, { passive: false });
     }
 
     gameOverScreen.addEventListener('pointerdown', restartOrContinueWithBurst);
