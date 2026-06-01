@@ -268,6 +268,27 @@
   <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
+    const GAME_WIDTH = 400;
+    const GAME_HEIGHT = 600;
+
+    function setupHighResCanvas() {
+      const ratio = window.devicePixelRatio || 1;
+
+      canvas.width = GAME_WIDTH * ratio;
+      canvas.height = GAME_HEIGHT * ratio;
+
+      canvas.style.width = '100%';
+      canvas.style.height = '100%';
+
+      // Keep all game drawing and positions in the original 400 x 600 coordinate system,
+      // but render sharply on Android, iPhone, tablets, and Retina screens.
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+    }
 
     // 🔒 Prevent mobile scrolling / zoom when touching the game
     canvas.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
@@ -435,10 +456,10 @@
     Object.entries(assetFiles).forEach(([key, file]) => loadImage(key, file));
 
     const laneCount = 5;
-    const laneWidth = canvas.width / laneCount;
+    const laneWidth = GAME_WIDTH / laneCount;
     const playerW = 88;
     const playerH = 160;
-    const playerY = canvas.height - playerH - 28;
+    const playerY = GAME_HEIGHT - playerH - 28;
     const goal = 100;
 
     let playerLane, educationalLevel, lives, gameRunning, fallingObjects, waveTick, lifeAnimations, collectAnimations;
@@ -609,7 +630,7 @@
         obj.y += obj.speed;
         obj.wobble += 0.008;
 
-        if (obj.y > canvas.height + obj.type.h) {
+        if (obj.y > GAME_HEIGHT + obj.type.h) {
           fallingObjects.splice(i, 1);
           continue;
         }
@@ -716,8 +737,8 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
 
     function createAmbientBubbles() {
       return Array.from({ length: 28 }, () => ({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
+        x: Math.random() * GAME_WIDTH,
+        y: Math.random() * GAME_HEIGHT,
         radius: 0.8 + Math.random() * 4.1,
         speed: 0.12 + Math.random() * 0.6,
         drift: 0.15 + Math.random() * 2.0,
@@ -728,8 +749,8 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
 
     function createCurrentStreaks() {
       return Array.from({ length: 16 }, () => ({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
+        x: Math.random() * GAME_WIDTH,
+        y: Math.random() * GAME_HEIGHT,
         length: 35 + Math.random() * 70,
         speed: 0.12 + Math.random() * 0.35,
         alpha: 0.05 + Math.random() * 0.10,
@@ -744,23 +765,23 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
 
     function drawBackground() {
       if (images.background && images.background.ready) {
-        ctx.drawImage(images.background, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(images.background, 0, 0, GAME_WIDTH, GAME_HEIGHT);
         return;
       }
 
-      const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+      const gradient = ctx.createLinearGradient(0, 0, GAME_WIDTH, GAME_HEIGHT);
       gradient.addColorStop(0, '#2be6ef');
       gradient.addColorStop(0.48, '#07bfd7');
       gradient.addColorStop(1, '#0682bd');
       ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
       ctx.globalAlpha = 0.18;
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 2;
-      for (let y = 25; y < canvas.height; y += 32) {
+      for (let y = 25; y < GAME_HEIGHT; y += 32) {
         ctx.beginPath();
-        for (let x = 0; x <= canvas.width; x += 20) {
+        for (let x = 0; x <= GAME_WIDTH; x += 20) {
           const yy = y + Math.sin(x * 0.045 + waveTick * 4 + y) * 4;
           x === 0 ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy);
         }
@@ -774,16 +795,16 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
         const x = i * laneWidth;
         ctx.beginPath();
         ctx.moveTo(x, 0);
-        ctx.lineTo(x, canvas.height);
+        ctx.lineTo(x, GAME_HEIGHT);
         ctx.stroke();
       }
 
       ctx.strokeStyle = '#eaffb6';
       ctx.lineWidth = 5;
-      ctx.strokeRect(6, 6, canvas.width - 12, canvas.height - 12);
+      ctx.strokeRect(6, 6, GAME_WIDTH - 12, GAME_HEIGHT - 12);
       ctx.strokeStyle = '#0b6da0';
       ctx.lineWidth = 2;
-      ctx.strokeRect(11, 11, canvas.width - 22, canvas.height - 22);
+      ctx.strokeRect(11, 11, GAME_WIDTH - 22, GAME_HEIGHT - 22);
     }
 
     function roundedRect(x, y, w, h, r) {
@@ -891,7 +912,7 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 16px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText(`Level ${currentLevel}`, canvas.width / 2, 105);
+      ctx.fillText(`Level ${currentLevel}`, GAME_WIDTH / 2, 105);
       ctx.restore();   
     }
 
@@ -987,7 +1008,7 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
     }
 
     function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.clearRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
       drawBackground();
       drawUnderwaterAtmosphere();
 
@@ -1051,8 +1072,8 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
     function getCanvasPointFromEvent(e) {
       const rect = canvas.getBoundingClientRect();
       return {
-        x: (e.clientX - rect.left) * (canvas.width / rect.width),
-        y: (e.clientY - rect.top) * (canvas.height / rect.height)
+        x: (e.clientX - rect.left) * (GAME_WIDTH / rect.width),
+        y: (e.clientY - rect.top) * (GAME_HEIGHT / rect.height)
       };
     }
 
@@ -1154,7 +1175,7 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
         const point = getCanvasPointFromEvent(e);
         createTapBurst(point.x, point.y);
       } else {
-        createTapBurst(canvas.width / 2, canvas.height / 2);
+        createTapBurst(GAME_WIDTH / 2, GAME_HEIGHT / 2);
       }
 
       restartPending = true;
@@ -1626,8 +1647,9 @@ educationalLevel = Math.min(goal, educationalLevel + obj.type.value);
       });
     }
 
+    setupHighResCanvas();
+    window.addEventListener('resize', setupHighResCanvas);
     updateControlButtons();
-
 gameOverScreen.addEventListener('pointerdown', restartOrContinueWithBurst);
     gameWinScreen.addEventListener('pointerdown', restartOrContinueWithBurst);
 
